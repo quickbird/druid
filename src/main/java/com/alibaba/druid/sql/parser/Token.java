@@ -138,13 +138,10 @@ public enum Token {
     CLOSE("CLOSE"),
     OUT("OUT"),
     INOUT("INOUT"),
-    HANDLER("HANDLER"),
     EXIT("EXIT"),
     UNDO("UNDO"),
     SQLSTATE("SQLSTATE"),
-    SQLWARNING("SQLWARNING"),
-    SQLEXCEPTION("SQLEXCEPTION"),
-    FOUND("FOUND"),
+    CONDITION("CONDITION"),
     
     //postgresql
     WINDOW("WINDOW"),
@@ -278,6 +275,10 @@ public enum Token {
     POSITION("POSITION"),
     RANGE_N("RANGE_N"),
     FORMAT("FORMAT"),
+    QUALIFY("QUALIFY"),
+    MOD("MOD"),
+    
+    CONCAT("CONCAT"), // DB2
 
     LPAREN("("), 
     RPAREN(")"), 
@@ -314,6 +315,8 @@ public enum Token {
     BARSLASH("|/"), 
     PLUS("+"), 
     SUB("-"), 
+    SUBGT("->"), 
+    SUBGTGT("->>"), 
     STAR("*"), 
     SLASH("/"), 
     AMP("&"), 
@@ -323,7 +326,9 @@ public enum Token {
     LTLT("<<"), 
     GTGT(">>"),
     MONKEYS_AT("@"),
-    POUND("#")
+    POUND("#"),
+    POUNDGT("#>"),
+    POUNDGTGT("#>>")
     ;
 
     public final String name;

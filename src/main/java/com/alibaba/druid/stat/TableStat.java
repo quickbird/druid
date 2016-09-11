@@ -202,6 +202,14 @@ public class TableStat {
             }
 
             Name other = (Name) o;
+            
+            if (this.name == other.name) {
+                return true;
+            }
+            
+            if (this.name == null | other.name == null) {
+                return false;
+            }
 
             return this.name.equalsIgnoreCase(other.name);
         }
@@ -401,6 +409,11 @@ public class TableStat {
 
         private transient String    fullName;
 
+        /**
+         * @since 1.0.20
+         */
+        private String              dataType;
+
         public Column(){
 
         }
@@ -478,6 +491,20 @@ public class TableStat {
         public void setName(String name) {
             this.name = name;
             this.fullName = null;
+        }
+        
+        /**
+         * @since 1.0.20
+         */
+        public String getDataType() {
+            return dataType;
+        }
+
+        /**
+         * @since 1.0.20
+         */
+        public void setDataType(String dataType) {
+            this.dataType = dataType;
         }
 
         public Map<String, Object> getAttributes() {

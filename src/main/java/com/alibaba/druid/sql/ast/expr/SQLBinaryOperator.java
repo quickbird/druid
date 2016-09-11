@@ -28,9 +28,15 @@ public enum SQLBinaryOperator {
     Multiply("*", 60), 
     Divide("/", 60), 
     Modulus("%", 60), 
+    Mod("MOD", 60),
     
     Add("+", 70), 
     Subtract("-", 70), 
+    
+    SubGt("->", 20), 
+    SubGtGt("->>", 20), 
+    PoundGt("#>", 20), 
+    PoundGtGt("#>>", 20), 
     
     LeftShift("<<", 80), 
     RightShift(">>", 80), 

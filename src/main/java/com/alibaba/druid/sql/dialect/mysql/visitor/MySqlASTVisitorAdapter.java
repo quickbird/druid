@@ -22,10 +22,10 @@ import com.alibaba.druid.sql.dialect.mysql.ast.MySqlPrimaryKey;
 import com.alibaba.druid.sql.dialect.mysql.ast.MySqlUnique;
 import com.alibaba.druid.sql.dialect.mysql.ast.MySqlUseIndexHint;
 import com.alibaba.druid.sql.dialect.mysql.ast.MysqlForeignKey;
-import com.alibaba.druid.sql.dialect.mysql.ast.clause.ConditionValue;
 import com.alibaba.druid.sql.dialect.mysql.ast.clause.MySqlCaseStatement;
 import com.alibaba.druid.sql.dialect.mysql.ast.clause.MySqlCaseStatement.MySqlWhenStatement;
 import com.alibaba.druid.sql.dialect.mysql.ast.clause.MySqlCursorDeclareStatement;
+import com.alibaba.druid.sql.dialect.mysql.ast.clause.MySqlDeclareConditionStatement;
 import com.alibaba.druid.sql.dialect.mysql.ast.clause.MySqlDeclareHandlerStatement;
 import com.alibaba.druid.sql.dialect.mysql.ast.clause.MySqlDeclareStatement;
 import com.alibaba.druid.sql.dialect.mysql.ast.clause.MySqlIterateStatement;
@@ -129,6 +129,7 @@ import com.alibaba.druid.sql.dialect.mysql.ast.statement.MySqlUnionQuery;
 import com.alibaba.druid.sql.dialect.mysql.ast.statement.MySqlUnlockTablesStatement;
 import com.alibaba.druid.sql.dialect.mysql.ast.statement.MySqlUpdateStatement;
 import com.alibaba.druid.sql.dialect.mysql.ast.statement.MySqlUpdateTableSource;
+import com.alibaba.druid.sql.dialect.mysql.ast.statement.MysqlDeallocatePrepareStatement;
 import com.alibaba.druid.sql.visitor.SQLASTVisitorAdapter;
 
 public class MySqlASTVisitorAdapter extends SQLASTVisitorAdapter implements MySqlASTVisitor {
@@ -227,6 +228,16 @@ public class MySqlASTVisitorAdapter extends SQLASTVisitorAdapter implements MySq
     public boolean visit(MySqlExecuteStatement x) {
 
         return true;
+    }
+    
+    @Override
+    public void endVisit(MysqlDeallocatePrepareStatement x) {
+    	
+    }
+    
+    @Override
+    public boolean visit(MysqlDeallocatePrepareStatement x) {
+    	return true;
     }
 
     @Override
@@ -1288,6 +1299,18 @@ public class MySqlASTVisitorAdapter extends SQLASTVisitorAdapter implements MySq
 
 	@Override
 	public void endVisit(MySqlDeclareHandlerStatement x) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public boolean visit(MySqlDeclareConditionStatement x) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	@Override
+	public void endVisit(MySqlDeclareConditionStatement x) {
 		// TODO Auto-generated method stub
 		
 	}

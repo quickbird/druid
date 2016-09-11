@@ -21,9 +21,11 @@ import com.alibaba.druid.sql.ast.SQLDeclareItem;
 import com.alibaba.druid.sql.ast.SQLName;
 import com.alibaba.druid.sql.ast.SQLObject;
 import com.alibaba.druid.sql.ast.expr.SQLIdentifierExpr;
+import com.alibaba.druid.sql.ast.expr.SQLPropertyExpr;
 import com.alibaba.druid.sql.ast.statement.SQLAlterTableStatement;
 import com.alibaba.druid.sql.ast.statement.SQLCreateTableStatement;
 import com.alibaba.druid.sql.ast.statement.SQLExprTableSource;
+import com.alibaba.druid.sql.ast.statement.SQLSelectItem;
 import com.alibaba.druid.sql.ast.statement.SQLSelectQueryBlock;
 import com.alibaba.druid.sql.ast.statement.SQLSelectStatement;
 import com.alibaba.druid.sql.ast.statement.SQLTableSource;
@@ -39,6 +41,7 @@ import com.alibaba.druid.sql.dialect.mysql.ast.MysqlForeignKey;
 import com.alibaba.druid.sql.dialect.mysql.ast.clause.MySqlCaseStatement;
 import com.alibaba.druid.sql.dialect.mysql.ast.clause.MySqlCaseStatement.MySqlWhenStatement;
 import com.alibaba.druid.sql.dialect.mysql.ast.clause.MySqlCursorDeclareStatement;
+import com.alibaba.druid.sql.dialect.mysql.ast.clause.MySqlDeclareConditionStatement;
 import com.alibaba.druid.sql.dialect.mysql.ast.clause.MySqlDeclareHandlerStatement;
 import com.alibaba.druid.sql.dialect.mysql.ast.clause.MySqlDeclareStatement;
 import com.alibaba.druid.sql.dialect.mysql.ast.clause.MySqlIterateStatement;
@@ -142,6 +145,7 @@ import com.alibaba.druid.sql.dialect.mysql.ast.statement.MySqlUnionQuery;
 import com.alibaba.druid.sql.dialect.mysql.ast.statement.MySqlUnlockTablesStatement;
 import com.alibaba.druid.sql.dialect.mysql.ast.statement.MySqlUpdateStatement;
 import com.alibaba.druid.sql.dialect.mysql.ast.statement.MySqlUpdateTableSource;
+import com.alibaba.druid.sql.dialect.mysql.ast.statement.MysqlDeallocatePrepareStatement;
 import com.alibaba.druid.sql.visitor.SchemaStatVisitor;
 import com.alibaba.druid.stat.TableStat;
 import com.alibaba.druid.stat.TableStat.Mode;
@@ -203,8 +207,19 @@ public class MySqlSchemaStatVisitor extends SchemaStatVisitor implements MySqlAS
 
         setAliasMap();
 
-        if (x.getTableName() instanceof SQLIdentifierExpr) {
-            String ident = ((SQLIdentifierExpr) x.getTableName()).getName();
+        SQLName tableName = x.getTableName();
+
+        String ident = null;
+        if (tableName instanceof SQLIdentifierExpr) {
+            ident = ((SQLIdentifierExpr) tableName).getName();
+        } else if (tableName instanceof SQLPropertyExpr) {
+            SQLPropertyExpr propertyExpr = (SQLPropertyExpr) tableName;
+            if (propertyExpr.getOwner() instanceof SQLIdentifierExpr) {
+                ident = propertyExpr.toString();
+            }
+        }
+
+        if (ident != null) {
             setCurrentTable(x, ident);
 
             TableStat stat = getTableStat(ident);
@@ -321,6 +336,16 @@ public class MySqlSchemaStatVisitor extends SchemaStatVisitor implements MySqlAS
     public boolean visit(MySqlExecuteStatement x) {
 
         return true;
+    }
+    
+    @Override
+    public void endVisit(MysqlDeallocatePrepareStatement x) {
+    	
+    }
+    
+    @Override
+    public boolean visit(MysqlDeallocatePrepareStatement x) {
+    	return true;
     }
 
     @Override
@@ -446,7 +471,7 @@ public class MySqlSchemaStatVisitor extends SchemaStatVisitor implements MySqlAS
 
     @Override
     public boolean visit(MySqlKillStatement x) {
-        return true;
+        return false;
     }
 
     @Override
@@ -537,7 +562,13 @@ public class MySqlSchemaStatVisitor extends SchemaStatVisitor implements MySqlAS
 
     @Override
     public boolean visit(MySqlUpdateStatement x) {
-        return visit((SQLUpdateStatement) x);
+        
+        visit((SQLUpdateStatement) x);
+        for (SQLSelectItem item : x.getReturning()) {
+            item.accept(this);
+        }
+        
+        return false;
     }
 
     @Override
@@ -1398,6 +1429,18 @@ public class MySqlSchemaStatVisitor extends SchemaStatVisitor implements MySqlAS
 
 	@Override
 	public void endVisit(MySqlDeclareHandlerStatement x) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public boolean visit(MySqlDeclareConditionStatement x) {
+		// TODO Auto-generated method stub
+		return false;
+	}
+
+	@Override
+	public void endVisit(MySqlDeclareConditionStatement x) {
 		// TODO Auto-generated method stub
 		
 	}

@@ -59,11 +59,13 @@ import com.alibaba.druid.sql.ast.expr.SQLNullExpr;
 import com.alibaba.druid.sql.ast.expr.SQLNumberExpr;
 import com.alibaba.druid.sql.ast.expr.SQLPropertyExpr;
 import com.alibaba.druid.sql.ast.expr.SQLQueryExpr;
+import com.alibaba.druid.sql.ast.expr.SQLSequenceExpr;
 import com.alibaba.druid.sql.ast.expr.SQLSomeExpr;
 import com.alibaba.druid.sql.ast.expr.SQLUnaryExpr;
 import com.alibaba.druid.sql.ast.expr.SQLUnaryOperator;
 import com.alibaba.druid.sql.ast.expr.SQLVariantRefExpr;
-import com.alibaba.druid.sql.ast.statement.NotNullConstraint;
+import com.alibaba.druid.sql.ast.statement.SQLNotNullConstraint;
+import com.alibaba.druid.sql.ast.statement.SQLNullConstraint;
 import com.alibaba.druid.sql.ast.statement.SQLAssignItem;
 import com.alibaba.druid.sql.ast.statement.SQLCharacterDataType;
 import com.alibaba.druid.sql.ast.statement.SQLCheck;
@@ -152,10 +154,31 @@ public class SQLExprParser extends SQLParser {
     }
 
     public SQLExpr bitXorRest(SQLExpr expr) {
-        if (lexer.token() == Token.CARET) {
+        Token token = lexer.token;
+        if (token == Token.CARET) {
             lexer.nextToken();
             SQLExpr rightExp = primary();
             expr = new SQLBinaryOpExpr(expr, SQLBinaryOperator.BitwiseXor, rightExp, getDbType());
+            expr = bitXorRest(expr);
+        } else if (token == Token.SUBGT) {
+            lexer.nextToken();
+            SQLExpr rightExp = primary();
+            expr = new SQLBinaryOpExpr(expr, SQLBinaryOperator.SubGt, rightExp, getDbType());
+            expr = bitXorRest(expr);
+        } else if (token == Token.SUBGTGT) {
+            lexer.nextToken();
+            SQLExpr rightExp = primary();
+            expr = new SQLBinaryOpExpr(expr, SQLBinaryOperator.SubGtGt, rightExp, getDbType());
+            expr = bitXorRest(expr);
+        } else if (token == Token.POUNDGT) {
+            lexer.nextToken();
+            SQLExpr rightExp = primary();
+            expr = new SQLBinaryOpExpr(expr, SQLBinaryOperator.PoundGt, rightExp, getDbType());
+            expr = bitXorRest(expr);
+        } else if (token == Token.POUNDGTGT) {
+            lexer.nextToken();
+            SQLExpr rightExp = primary();
+            expr = new SQLBinaryOpExpr(expr, SQLBinaryOperator.PoundGtGt, rightExp, getDbType());
             expr = bitXorRest(expr);
         }
 
@@ -343,6 +366,9 @@ public class SQLExprParser extends SQLParser {
             case REPEAT:
             case TABLE:
             case TRUNCATE:
+            case EXCEPTION:
+            case FUNCTION:
+            case IDENTITY:
                 sqlExpr = new SQLIdentifierExpr(lexer.stringVal());
                 lexer.nextToken();
                 break;
@@ -665,7 +691,8 @@ public class SQLExprParser extends SQLParser {
             throw new IllegalArgumentException("expr");
         }
 
-        if (lexer.token() == Token.OF) {
+        Token token = lexer.token;
+        if (token == Token.OF) {
             if (expr instanceof SQLIdentifierExpr) {
                 String name = ((SQLIdentifierExpr) expr).getName();
                 if ("CURRENT".equalsIgnoreCase(name)) {
@@ -674,9 +701,30 @@ public class SQLExprParser extends SQLParser {
                     return new SQLCurrentOfCursorExpr(cursorName);
                 }
             }
+        } else if (token == Token.FOR) {
+            if (expr instanceof SQLIdentifierExpr) {
+                SQLIdentifierExpr idenExpr = (SQLIdentifierExpr) expr;
+                String name = idenExpr.getName();
+                if ("NEXTVAL".equalsIgnoreCase(name)) {
+                    lexer.nextToken();
+                    SQLName seqName = this.name();
+                    SQLSequenceExpr seqExpr = new SQLSequenceExpr(seqName, SQLSequenceExpr.Function.NextVal);
+                    return seqExpr;
+                } else if ("CURRVAL".equalsIgnoreCase(name)) {
+                    lexer.nextToken();
+                    SQLName seqName = this.name();
+                    SQLSequenceExpr seqExpr = new SQLSequenceExpr(seqName, SQLSequenceExpr.Function.CurrVal);
+                    return seqExpr;
+                } else if ("PREVVAL".equalsIgnoreCase(name)) {
+                    lexer.nextToken();
+                    SQLName seqName = this.name();
+                    SQLSequenceExpr seqExpr = new SQLSequenceExpr(seqName, SQLSequenceExpr.Function.PrevVal);
+                    return seqExpr;
+                }
+            }
         }
 
-        if (lexer.token() == Token.DOT) {
+        if (token == Token.DOT) {
             lexer.nextToken();
 
             if (expr instanceof SQLCharExpr) {
@@ -737,7 +785,7 @@ public class SQLExprParser extends SQLParser {
             accept(Token.LPAREN);
         }
 
-        if (expr instanceof SQLName || expr instanceof SQLDefaultExpr) {
+        if (expr instanceof SQLName || expr instanceof SQLDefaultExpr || expr instanceof SQLCharExpr) {
             String methodName;
 
             SQLMethodInvokeExpr methodInvokeExpr;
@@ -935,6 +983,8 @@ public class SQLExprParser extends SQLParser {
                 case REVOKE:
                     // binary有很多含义，lexer识别了这个token，实际上应该当做普通IDENTIFIER
                 case BINARY:
+                case OVER:
+                case ORDER:
                     identName = lexer.stringVal();
                     lexer.nextToken();
                     break;
@@ -1222,7 +1272,7 @@ public class SQLExprParser extends SQLParser {
 
             expr = new SQLBinaryOpExpr(expr, SQLBinaryOperator.Add, rightExp, getDbType());
             expr = additiveRest(expr);
-        } else if (lexer.token() == Token.BARBAR) {
+        } else if (lexer.token() == Token.BARBAR || lexer.token() == Token.CONCAT) {
             lexer.nextToken();
             SQLExpr rightExp = multiplicative();
             expr = new SQLBinaryOpExpr(expr, SQLBinaryOperator.Concat, rightExp, getDbType());
@@ -1507,6 +1557,11 @@ public class SQLExprParser extends SQLParser {
                 ) {
             typeName += (' ' + lexer.stringVal());
             lexer.nextToken();
+        } else if ("double".equalsIgnoreCase(typeName)
+                && JdbcConstants.POSTGRESQL.equals(getDbType()) //
+                ) {
+            typeName += (' ' + lexer.stringVal());
+            lexer.nextToken();
         }
 
         if (isCharType(typeName)) {
@@ -1537,6 +1592,11 @@ public class SQLExprParser extends SQLParser {
             lexer.nextToken();
             exprList(dataType.getArguments(), dataType);
             accept(Token.RPAREN);
+        }
+        
+        if (identifierEquals("PRECISION") && dataType.getName().equalsIgnoreCase("DOUBLE")) {
+            lexer.nextToken();
+            dataType.setName("DOUBLE PRECISION");
         }
 
         return dataType;
@@ -1624,13 +1684,13 @@ public class SQLExprParser extends SQLParser {
         if (lexer.token() == Token.NOT) {
             lexer.nextToken();
             accept(Token.NULL);
-            column.addConstraint(new NotNullConstraint());
+            column.addConstraint(new SQLNotNullConstraint());
             return parseColumnRest(column);
         }
 
         if (lexer.token() == Token.NULL) {
             lexer.nextToken();
-            column.setDefaultExpr(new SQLNullExpr());
+            column.getConstraints().add(new SQLNullConstraint());
             return parseColumnRest(column);
         }
 
@@ -1687,7 +1747,7 @@ public class SQLExprParser extends SQLParser {
             if (lexer.token() == Token.NOT) {
                 lexer.nextToken();
                 accept(Token.NULL);
-                NotNullConstraint notNull = new NotNullConstraint();
+                SQLNotNullConstraint notNull = new SQLNotNullConstraint();
                 notNull.setName(name);
                 column.addConstraint(notNull);
                 return parseColumnRest(column);
@@ -1720,6 +1780,7 @@ public class SQLExprParser extends SQLParser {
         if (lexer.token() == Token.COMMENT) {
             lexer.nextToken();
             column.setComment(primary());
+            return parseColumnRest(column);
         }
 
         return column;
@@ -1956,5 +2017,13 @@ public class SQLExprParser extends SQLParser {
         }
 
         return values;
+    }
+    
+    protected static boolean isIdent(SQLExpr expr, String name) {
+        if (expr instanceof SQLIdentifierExpr) {
+            SQLIdentifierExpr identExpr = (SQLIdentifierExpr) expr;
+            return identExpr.getName().equalsIgnoreCase(name);
+        }
+        return false;
     }
 }

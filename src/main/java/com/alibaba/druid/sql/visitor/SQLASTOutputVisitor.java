@@ -78,6 +78,7 @@ import com.alibaba.druid.sql.ast.expr.SQLNullExpr;
 import com.alibaba.druid.sql.ast.expr.SQLNumberExpr;
 import com.alibaba.druid.sql.ast.expr.SQLPropertyExpr;
 import com.alibaba.druid.sql.ast.expr.SQLQueryExpr;
+import com.alibaba.druid.sql.ast.expr.SQLSequenceExpr;
 import com.alibaba.druid.sql.ast.expr.SQLSomeExpr;
 import com.alibaba.druid.sql.ast.expr.SQLTimestampExpr;
 import com.alibaba.druid.sql.ast.expr.SQLUnaryExpr;
@@ -87,6 +88,8 @@ import com.alibaba.druid.sql.ast.statement.SQLCreateTriggerStatement.TriggerEven
 import com.alibaba.druid.sql.ast.statement.SQLCreateTriggerStatement.TriggerType;
 import com.alibaba.druid.sql.ast.statement.SQLInsertStatement.ValuesClause;
 import com.alibaba.druid.sql.ast.statement.SQLJoinTableSource.JoinType;
+import com.alibaba.druid.sql.ast.statement.SQLMergeStatement.MergeInsertClause;
+import com.alibaba.druid.sql.ast.statement.SQLMergeStatement.MergeUpdateClause;
 import com.alibaba.druid.util.JdbcConstants;
 
 public class SQLASTOutputVisitor extends SQLASTVisitorAdapter implements PrintableVisitor {
@@ -100,7 +103,7 @@ public class SQLASTOutputVisitor extends SQLASTVisitorAdapter implements Printab
 
     protected boolean          groupItemSingleLine    = false;
 
-    private List<Object>       parameters;
+    protected List<Object>       parameters;
 
     protected String           dbType;
 
@@ -329,7 +332,7 @@ public class SQLASTOutputVisitor extends SQLASTVisitorAdapter implements Printab
             } else {
                 print0(" ");
             }
-            print0(ucase ? x.getOperator().name : x.getOperator().name_lcase);
+            printOperator(x.getOperator());
             print0(" ");
         }
 
@@ -340,6 +343,10 @@ public class SQLASTOutputVisitor extends SQLASTVisitorAdapter implements Printab
         }
 
         return false;
+    }
+
+    protected void printOperator(SQLBinaryOperator operator) {
+        print0(ucase ? operator.name : operator.name_lcase);
     }
 
     private void visitorBinaryRight(SQLBinaryOpExpr x) {
@@ -750,16 +757,22 @@ public class SQLASTOutputVisitor extends SQLASTVisitorAdapter implements Printab
             x.getFrom().accept(this);
         }
 
-        if (x.getWhere() != null) {
+        SQLExpr where = x.getWhere();
+        if (where != null) {
             println();
             print0(ucase ? "WHERE " : "where ");
-            x.getWhere().setParent(x);
-            x.getWhere().accept(this);
+            where.setParent(x);
+            where.accept(this);
         }
 
         if (x.getGroupBy() != null) {
             println();
             x.getGroupBy().accept(this);
+        }
+        
+        if (x.getOrderBy() != null) {
+            println();
+            x.getOrderBy().accept(this);
         }
 
         return false;
@@ -841,7 +854,7 @@ public class SQLASTOutputVisitor extends SQLASTVisitorAdapter implements Printab
     public boolean visit(SQLVariantRefExpr x) {
         int index = x.getIndex();
 
-        if (parameters == null || index >= parameters.size()) {
+        if (index < 0 || parameters == null || index >= parameters.size()) {
             print0(x.getName());
             return false;
         }
@@ -1005,11 +1018,14 @@ public class SQLASTOutputVisitor extends SQLASTVisitorAdapter implements Printab
 
     @Override
     public boolean visit(SQLColumnDefinition.Identity x) {
-        print0(ucase ? "IDENTITY (" : "identity (");
-        print(x.getSeed());
-        print0(", ");
-        print(x.getIncrement());
-        print(')');
+        print0(ucase ? "IDENTITY" : "identity");
+        if (x.getSeed() != null) {
+            print0(" (");
+            print(x.getSeed());
+            print0(", ");
+            print(x.getIncrement());
+            print(')');
+        }
         return false;
     }
 
@@ -1063,11 +1079,11 @@ public class SQLASTOutputVisitor extends SQLASTVisitorAdapter implements Printab
             decrementIndent();
         }
 
-        if (x.getValues() != null) {
+        if (!x.getValuesList().isEmpty()) {
             println();
             print0(ucase ? "VALUES" : "values");
             println();
-            x.getValues().accept(this);
+            printAndAccept(x.getValuesList(), ", ");
         } else {
             if (x.getQuery() != null) {
                 println();
@@ -1167,7 +1183,7 @@ public class SQLASTOutputVisitor extends SQLASTVisitorAdapter implements Printab
         return false;
     }
 
-    public boolean visit(NotNullConstraint x) {
+    public boolean visit(SQLNotNullConstraint x) {
         if (x.getName() != null) {
             print0(ucase ? "CONSTRAINT " : "constraint ");
             x.getName().accept(this);
@@ -1175,6 +1191,16 @@ public class SQLASTOutputVisitor extends SQLASTVisitorAdapter implements Printab
         }
         print0(ucase ? "NOT NULL" : "not null");
         return false;
+    }
+
+    public boolean visit(SQLNullConstraint x) {
+    	if (x.getName() != null) {
+    		print0(ucase ? "CONSTRAINT " : "constraint ");
+    		x.getName().accept(this);
+    		print(' ');
+    	}
+    	print0(ucase ? "NULL" : "null");
+    	return false;
     }
 
     @Override
@@ -1436,6 +1462,31 @@ public class SQLASTOutputVisitor extends SQLASTVisitorAdapter implements Printab
     public boolean visit(SQLTruncateStatement x) {
         print0(ucase ? "TRUNCATE TABLE " : "truncate table ");
         printAndAccept(x.getTableSources(), ", ");
+        
+        if (x.isDropStorage()) {
+            print0(ucase ? " DROP STORAGE" : " drop storage");    
+        }
+        
+        if (x.isReuseStorage()) {
+            print0(ucase ? " REUSE STORAGE" : " reuse storage");    
+        }
+        
+        if (x.isIgnoreDeleteTriggers()) {
+            print0(ucase ? " IGNORE DELETE TRIGGERS" : " ignore delete triggers");    
+        }
+        
+        if (x.isRestrictWhenDeleteTriggers()) {
+            print0(ucase ? " RESTRICT WHEN DELETE TRIGGERS" : " restrict when delete triggers");    
+        }
+        
+        if (x.isContinueIdentity()) {
+            print0(ucase ? " CONTINUE IDENTITY" : " continue identity");
+        }
+        
+        if (x.isImmediate()) {
+            print0(ucase ? " IMMEDIATE" : " immediate");    
+        }
+        
         return false;
     }
 
@@ -3061,4 +3112,124 @@ public class SQLASTOutputVisitor extends SQLASTVisitorAdapter implements Printab
         printPartitions(x.getPartitions());
         return false;
     }
+    
+    @Override
+    public boolean visit(SQLSequenceExpr x) {
+        x.getSequence().accept(this);
+        print('.');
+        print0(ucase ? x.getFunction().name : x.getFunction().name_lcase);
+        return false;
+    }
+    
+    @Override
+    public boolean visit(SQLMergeStatement x) {
+        print0(ucase ? "MERGE " : "merge ");
+        if (x.getHints().size() > 0) {
+            printAndAccept(x.getHints(), ", ");
+            print(' ');
+        }
+
+        print0(ucase ? "INTO " : "into ");
+        x.getInto().accept(this);
+
+        if (x.getAlias() != null) {
+            print(' ');
+            print0(x.getAlias());
+        }
+
+        println();
+        print0(ucase ? "USING " : "using ");
+        x.getUsing().accept(this);
+
+        print0(ucase ? " ON (" : " on (");
+        x.getOn().accept(this);
+        print0(") ");
+
+        if (x.getUpdateClause() != null) {
+            println();
+            x.getUpdateClause().accept(this);
+        }
+
+        if (x.getInsertClause() != null) {
+            println();
+            x.getInsertClause().accept(this);
+        }
+
+        if (x.getErrorLoggingClause() != null) {
+            println();
+            x.getErrorLoggingClause().accept(this);
+        }
+
+        return false;
+    }
+
+    @Override
+    public boolean visit(MergeUpdateClause x) {
+        print0(ucase ? "WHEN MATCHED THEN UPDATE SET " : "when matched then update set ");
+        printAndAccept(x.getItems(), ", ");
+        if (x.getWhere() != null) {
+            incrementIndent();
+            println();
+            print0(ucase ? "WHERE " : "where ");
+            x.getWhere().setParent(x);
+            x.getWhere().accept(this);
+            decrementIndent();
+        }
+
+        if (x.getDeleteWhere() != null) {
+            incrementIndent();
+            println();
+            print0(ucase ? "DELETE WHERE " : "delete where ");
+            x.getDeleteWhere().setParent(x);
+            x.getDeleteWhere().accept(this);
+            decrementIndent();
+        }
+
+        return false;
+    }
+
+    @Override
+    public boolean visit(MergeInsertClause x) {
+        print0(ucase ? "WHEN NOT MATCHED THEN INSERT" : "when not matched then insert");
+        if (x.getColumns().size() > 0) {
+            print(' ');
+            printAndAccept(x.getColumns(), ", ");
+        }
+        print0(ucase ? " VALUES (" : " values (");
+        printAndAccept(x.getValues(), ", ");
+        print(')');
+        if (x.getWhere() != null) {
+            incrementIndent();
+            println();
+            print0(ucase ? "WHERE " : "where ");
+            x.getWhere().setParent(x);
+            x.getWhere().accept(this);
+            decrementIndent();
+        }
+
+        return false;
+    }
+
+    @Override
+    public boolean visit(SQLErrorLoggingClause x) {
+        print0(ucase ? "LOG ERRORS " : "log errors ");
+        if (x.getInto() != null) {
+            print0(ucase ? "INTO " : "into ");
+            x.getInto().accept(this);
+            print(' ');
+        }
+
+        if (x.getSimpleExpression() != null) {
+            print('(');
+            x.getSimpleExpression().accept(this);
+            print(')');
+        }
+
+        if (x.getLimit() != null) {
+            print0(ucase ? " REJECT LIMIT " : " reject limit ");
+            x.getLimit().accept(this);
+        }
+
+        return false;
+    }    
 }

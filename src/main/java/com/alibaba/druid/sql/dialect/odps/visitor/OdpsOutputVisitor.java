@@ -25,6 +25,7 @@ import com.alibaba.druid.sql.ast.SQLOrderBy;
 import com.alibaba.druid.sql.ast.SQLSetQuantifier;
 import com.alibaba.druid.sql.ast.SQLStatement;
 import com.alibaba.druid.sql.ast.expr.SQLCaseExpr;
+import com.alibaba.druid.sql.ast.expr.SQLCharExpr;
 import com.alibaba.druid.sql.ast.expr.SQLMethodInvokeExpr;
 import com.alibaba.druid.sql.ast.statement.SQLAssignItem;
 import com.alibaba.druid.sql.ast.statement.SQLColumnDefinition;
@@ -872,6 +873,41 @@ public class OdpsOutputVisitor extends SQLASTOutputVisitor implements OdpsASTVis
         print0(ucase ? " AS " : " as ");
         printAndAccept(x.getColumns(), ", ");
         decrementIndent();
+        return false;
+    }
+    
+    public boolean visit(SQLCharExpr x) {
+        String text = x.getText();
+        if (text == null) {
+            print0(ucase ? "NULL" : "null");
+        } else {
+            StringBuilder buf = new StringBuilder(text.length() + 2);
+            buf.append('\'');
+            for (int i = 0; i < text.length(); ++i) {
+                char ch = text.charAt(i);
+                switch (ch) {
+                    case '\\':
+                        buf.append("\\\\");
+                        break;
+                    case '\'':
+                        buf.append("\\'");
+                        break;
+                    case '\0':
+                        buf.append("\\0");
+                        break;
+                    case '\n':
+                        buf.append("\\n");
+                        break;
+                    default:
+                        buf.append(ch);
+                        break;
+                }
+            }
+            buf.append('\'');
+
+            print0(buf.toString());
+        }
+
         return false;
     }
 }
